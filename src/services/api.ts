@@ -18,7 +18,7 @@ import type {
   PaginatedResponse,
 } from '../types';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 const REQUEST_TIMEOUT_MS = 30_000;
 

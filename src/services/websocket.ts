@@ -1,6 +1,6 @@
 import type { TaskLog } from '../types';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 function isValidTaskLog(data: unknown): data is TaskLog {
   if (!data || typeof data !== 'object') return false;
@@ -14,6 +14,10 @@ function isValidTaskLog(data: unknown): data is TaskLog {
 }
 
 function getWsUrl(): string {
+  if (!API_URL) {
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${proto}//${window.location.host}`;
+  }
   const url = new URL(API_URL);
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
   return url.toString().replace(/\/$/, '');
