@@ -1,4 +1,5 @@
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface MarkdownRendererProps {
   children: string;
@@ -7,6 +8,7 @@ interface MarkdownRendererProps {
 const ALLOWED_ELEMENTS = [
   'p', 'strong', 'em', 'ul', 'ol', 'li', 'pre', 'code',
   'h1', 'h2', 'h3', 'a', 'blockquote', 'hr', 'br',
+  'table', 'thead', 'tbody', 'tr', 'th', 'td',
 ];
 
 const SAFE_URL_PROTOCOLS = /^(https?:|mailto:)/i;
@@ -21,6 +23,7 @@ export function MarkdownRenderer({ children }: MarkdownRendererProps) {
   return (
     <ReactMarkdown
       skipHtml
+      remarkPlugins={[remarkGfm]}
       allowedElements={ALLOWED_ELEMENTS}
       components={{
         p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
@@ -72,6 +75,24 @@ export function MarkdownRenderer({ children }: MarkdownRendererProps) {
           </blockquote>
         ),
         hr: () => <hr className="my-3 border-slate-700" />,
+        table: ({ children }) => (
+          <div className="mb-2 overflow-x-auto last:mb-0">
+            <table className="min-w-full border-collapse text-sm">{children}</table>
+          </div>
+        ),
+        thead: ({ children }) => (
+          <thead className="border-b border-slate-600">{children}</thead>
+        ),
+        tbody: ({ children }) => <tbody>{children}</tbody>,
+        tr: ({ children }) => (
+          <tr className="border-b border-slate-700/50">{children}</tr>
+        ),
+        th: ({ children }) => (
+          <th className="px-3 py-1.5 text-left font-semibold text-slate-300">{children}</th>
+        ),
+        td: ({ children }) => (
+          <td className="px-3 py-1.5 text-slate-400">{children}</td>
+        ),
       }}
     >
       {children}
