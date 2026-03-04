@@ -26,6 +26,7 @@ export function extractActivityEvent(log: TaskLog): ActivityEvent | null {
   if (
     eventType !== 'tool_use' &&
     eventType !== 'assistant' &&
+    eventType !== 'reasoning' &&
     eventType !== 'tool_result' &&
     eventType !== 'error'
   ) {
@@ -96,6 +97,9 @@ export function classifyActivityEvent(event: ActivityEvent): ContentCategory {
   if (event.event_type === 'tool_use') {
     return event.tool_name === 'Task' ? 'delegation' : 'tool';
   }
+
+  // Reasoning events (OpenCode chain-of-thought) map directly to thinking
+  if (event.event_type === 'reasoning') return 'thinking';
 
   // For assistant events, inspect content items with priority order
   if (event.event_type === 'assistant') {

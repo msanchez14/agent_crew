@@ -15,7 +15,14 @@ import type {
   ScheduleRun,
   CreateScheduleRequest,
   UpdateScheduleRequest,
+  Webhook,
+  WebhookWithToken,
+  WebhookRun,
+  CreateWebhookRequest,
+  UpdateWebhookRequest,
   PaginatedResponse,
+  McpConfigResponse,
+  McpServerConfig,
 } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -76,6 +83,22 @@ export const teamsApi = {
     request<Team>(`/api/teams/${id}/deploy`, { method: 'POST' }),
   stop: (id: string) =>
     request<Team>(`/api/teams/${id}/stop`, { method: 'POST' }),
+  getMcpConfig: (id: string) =>
+    request<McpConfigResponse>(`/api/teams/${id}/mcp`),
+  updateMcpConfig: (id: string, content: string) =>
+    request<void>(`/api/teams/${id}/mcp`, {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    }),
+  addMcpServer: (id: string, data: McpServerConfig) =>
+    request<Team>(`/api/teams/${id}/mcp/servers`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  removeMcpServer: (id: string, serverName: string) =>
+    request<void>(`/api/teams/${id}/mcp/servers/${encodeURIComponent(serverName)}`, {
+      method: 'DELETE',
+    }),
 };
 
 // Agents
@@ -182,6 +205,32 @@ export const schedulesApi = {
     request<ScheduleRun>(`/api/schedules/${scheduleId}/runs/${runId}`),
   getConfig: () =>
     request<{ timeout: string }>('/api/schedules/config'),
+};
+
+// Webhooks
+export const webhooksApi = {
+  list: () => request<Webhook[]>('/api/webhooks'),
+  get: (id: string) => request<Webhook>(`/api/webhooks/${id}`),
+  create: (data: CreateWebhookRequest) =>
+    request<WebhookWithToken>('/api/webhooks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (id: string, data: UpdateWebhookRequest) =>
+    request<Webhook>(`/api/webhooks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    request<void>(`/api/webhooks/${id}`, { method: 'DELETE' }),
+  toggle: (id: string) =>
+    request<Webhook>(`/api/webhooks/${id}/toggle`, { method: 'PATCH' }),
+  regenerateToken: (id: string) =>
+    request<WebhookWithToken>(`/api/webhooks/${id}/regenerate`, { method: 'POST' }),
+  runs: (webhookId: string) =>
+    request<PaginatedResponse<WebhookRun>>(`/api/webhooks/${webhookId}/runs`),
+  getRun: (webhookId: string, runId: string) =>
+    request<WebhookRun>(`/api/webhooks/${webhookId}/runs/${runId}`),
 };
 
 // Settings

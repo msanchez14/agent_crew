@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { AgentProvider, CreateTeamRequest, SkillConfig, Setting } from '../types';
+import type { AgentProvider, CreateTeamRequest, SkillConfig, Setting, McpServerConfig, McpTransport } from '../types';
 import { teamsApi, settingsApi } from '../services/api';
 import { toast } from '../components/Toast';
 import { friendlyError } from '../utils/errors';
@@ -102,6 +102,19 @@ export function TeamBuilderPage() {
   // Transient skill input text per agent (keyed by agent.id)
   const [skillRepoInputs, setSkillRepoInputs] = useState<Record<string, string>>({});
   const [skillNameInputs, setSkillNameInputs] = useState<Record<string, string>>({});
+
+  // MCP Servers (team-wide)
+  const [mcpServers, setMcpServers] = useState<McpServerConfig[]>([]);
+  const [mcpDraft, setMcpDraft] = useState<Partial<McpServerConfig>>({ transport: 'stdio' });
+  const [mcpArgsText, setMcpArgsText] = useState('');
+  const [showMcpRawEditor, setShowMcpRawEditor] = useState(false);
+  const [mcpRawJson, setMcpRawJson] = useState('');
+  const [mcpRawError, setMcpRawError] = useState('');
+  const [mcpEnvKey, setMcpEnvKey] = useState('');
+  const [mcpEnvValue, setMcpEnvValue] = useState('');
+  const [mcpHeaderKey, setMcpHeaderKey] = useState('');
+  const [mcpHeaderValue, setMcpHeaderValue] = useState('');
+  const [editingMcpIndex, setEditingMcpIndex] = useState<number | null>(null);
 
   // Track configured setting keys for credential warnings (OpenCode only).
   const [configuredKeys, setConfiguredKeys] = useState<Set<string>>(new Set());
@@ -216,6 +229,187 @@ export function TeamBuilderPage() {
     ));
   }
 
+  function addMcpServer() {
+    const name = (mcpDraft.name ?? '').trim();
+    if (!name) { toast('error', 'Server name is required'); return; }
+    if (!/^[a-zA-Z0-9_-]+$/.test(name)) { toast('error', 'Server name must be alphanumeric with hyphens/underscores'); return; }
+    if (name.length > 64) { toast('error', 'Server name must be at most 64 characters'); return; }
+    // Check duplicates, skipping the entry being edited.
+    if (mcpServers.some((s, i) => s.name.toLowerCase() === name.toLowerCase() && i !== editingMcpIndex)) {
+      toast('error', 'Duplicate server name'); return;
+    }
+
+    const transport = mcpDraft.transport ?? 'stdio';
+    if (transport === 'stdio' && !mcpDraft.command?.trim()) { toast('error', 'Command is required for stdio transport'); return; }
+    if ((transport === 'http' || transport === 'sse') && !mcpDraft.url?.trim()) { toast('error', 'URL is required for ' + transport + ' transport'); return; }
+
+    if ((transport === 'http' || transport === 'sse') && mcpDraft.url) {
+      try {
+        const u = new URL(mcpDraft.url);
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') { toast('error', 'URL must use http or https'); return; }
+      } catch { toast('error', 'Invalid URL'); return; }
+    }
+
+    const parsedArgs = mcpArgsText.split(',').map((s) => s.trim()).filter(Boolean);
+    const server: McpServerConfig = {
+      name,
+      transport,
+      ...(transport === 'stdio' && {
+        command: mcpDraft.command?.trim(),
+        args: parsedArgs.length > 0 ? parsedArgs : undefined,
+        env: mcpDraft.env && Object.keys(mcpDraft.env).length > 0 ? mcpDraft.env : undefined,
+      }),
+      ...((transport === 'http' || transport === 'sse') && {
+        url: mcpDraft.url?.trim(),
+        headers: mcpDraft.headers && Object.keys(mcpDraft.headers).length > 0 ? mcpDraft.headers : undefined,
+      }),
+    };
+
+    if (editingMcpIndex !== null) {
+      const updated = [...mcpServers];
+      updated[editingMcpIndex] = server;
+      setMcpServers(updated);
+      setEditingMcpIndex(null);
+    } else {
+      setMcpServers([...mcpServers, server]);
+    }
+    setMcpDraft({ transport: 'stdio' });
+    setMcpArgsText('');
+    setMcpEnvKey(''); setMcpEnvValue('');
+    setMcpHeaderKey(''); setMcpHeaderValue('');
+  }
+
+  function startEditMcpServer(index: number) {
+    const srv = mcpServers[index];
+    setEditingMcpIndex(index);
+    setMcpDraft({
+      name: srv.name,
+      transport: srv.transport,
+      command: srv.command,
+      url: srv.url,
+      env: srv.env ? { ...srv.env } : undefined,
+      headers: srv.headers ? { ...srv.headers } : undefined,
+    });
+    setMcpArgsText((srv.args ?? []).join(', '));
+    setShowMcpRawEditor(false);
+  }
+
+  function cancelEditMcpServer() {
+    setEditingMcpIndex(null);
+    setMcpDraft({ transport: 'stdio' });
+    setMcpArgsText('');
+    setMcpEnvKey(''); setMcpEnvValue('');
+    setMcpHeaderKey(''); setMcpHeaderValue('');
+  }
+
+  function removeMcpServer(index: number) {
+    setMcpServers(mcpServers.filter((_, i) => i !== index));
+  }
+
+  function addMcpEnvVar() {
+    const key = mcpEnvKey.trim();
+    const value = mcpEnvValue.trim();
+    if (!key) return;
+    setMcpDraft({ ...mcpDraft, env: { ...(mcpDraft.env ?? {}), [key]: value } });
+    setMcpEnvKey(''); setMcpEnvValue('');
+  }
+
+  function removeMcpEnvVar(key: string) {
+    const env = { ...(mcpDraft.env ?? {}) };
+    delete env[key];
+    setMcpDraft({ ...mcpDraft, env });
+  }
+
+  function addMcpHeader() {
+    const key = mcpHeaderKey.trim();
+    const value = mcpHeaderValue.trim();
+    if (!key) return;
+    setMcpDraft({ ...mcpDraft, headers: { ...(mcpDraft.headers ?? {}), [key]: value } });
+    setMcpHeaderKey(''); setMcpHeaderValue('');
+  }
+
+  function removeMcpHeader(key: string) {
+    const headers = { ...(mcpDraft.headers ?? {}) };
+    delete headers[key];
+    setMcpDraft({ ...mcpDraft, headers });
+  }
+
+  function applyMcpRawJson() {
+    try {
+      const parsed = JSON.parse(mcpRawJson);
+
+      // 1. Already an array of McpServerConfig — use as-is.
+      if (Array.isArray(parsed)) {
+        setMcpServers(parsed);
+        setMcpRawError('');
+        setShowMcpRawEditor(false);
+        toast('success', 'MCP servers updated from JSON');
+        return;
+      }
+
+      // 2. Claude Code format: { "mcpServers": { ... } }
+      if (parsed.mcpServers && typeof parsed.mcpServers === 'object') {
+        const servers: McpServerConfig[] = [];
+        for (const [name, entry] of Object.entries(parsed.mcpServers)) {
+          const e = entry as Record<string, unknown>;
+          const srv: McpServerConfig = { name, transport: 'stdio' };
+          if (e.type === 'http') {
+            srv.transport = 'http';
+            srv.url = e.url as string;
+            if (e.headers) srv.headers = e.headers as Record<string, string>;
+          } else if (e.url && !e.command) {
+            srv.transport = 'sse';
+            srv.url = e.url as string;
+            if (e.headers) srv.headers = e.headers as Record<string, string>;
+          } else {
+            srv.transport = 'stdio';
+            srv.command = e.command as string;
+            if (Array.isArray(e.args)) srv.args = e.args as string[];
+            if (e.env) srv.env = e.env as Record<string, string>;
+          }
+          servers.push(srv);
+        }
+        setMcpServers(servers);
+        setMcpRawError('');
+        setShowMcpRawEditor(false);
+        toast('success', `${servers.length} MCP server(s) imported from Claude Code format`);
+        return;
+      }
+
+      // 3. OpenCode format: { "mcp": { ... } }
+      if (parsed.mcp && typeof parsed.mcp === 'object') {
+        const servers: McpServerConfig[] = [];
+        for (const [name, entry] of Object.entries(parsed.mcp)) {
+          const e = entry as Record<string, unknown>;
+          const srv: McpServerConfig = { name, transport: 'stdio' };
+          if (e.type === 'remote') {
+            srv.transport = 'http';
+            srv.url = e.url as string;
+            if (e.headers) srv.headers = e.headers as Record<string, string>;
+          } else {
+            srv.transport = 'stdio';
+            if (e.environment) srv.env = e.environment as Record<string, string>;
+            const cmdArray = e.command as string[] | undefined;
+            if (Array.isArray(cmdArray) && cmdArray.length > 0) {
+              srv.command = cmdArray[0];
+              if (cmdArray.length > 1) srv.args = cmdArray.slice(1);
+            }
+          }
+          servers.push(srv);
+        }
+        setMcpServers(servers);
+        setMcpRawError('');
+        setShowMcpRawEditor(false);
+        toast('success', `${servers.length} MCP server(s) imported from OpenCode format`);
+        return;
+      }
+
+      setMcpRawError('Unrecognized format. Paste a JSON array, a Claude Code .mcp.json, or an OpenCode opencode.json');
+    } catch (e) {
+      setMcpRawError('Invalid JSON: ' + (e instanceof Error ? e.message : 'parse error'));
+    }
+  }
+
   function canProceed(): boolean {
     if (step === 1) return isValidName(teamName);
     if (step === 2) {
@@ -236,6 +430,7 @@ export function TeamBuilderPage() {
         description: description.trim() || undefined,
         workspace_path: workspacePath.trim() || undefined,
         provider,
+        mcp_servers: mcpServers.length > 0 ? mcpServers : undefined,
         agents: agents.map((a, i) => {
           if (i === 0) {
             return {
@@ -638,6 +833,231 @@ export function TeamBuilderPage() {
           >
             + Add Sub-Agent
           </button>
+
+          {/* MCP Servers (team-wide) */}
+          <div className="mt-6 rounded-lg border border-slate-700 bg-slate-800/50 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <span className="text-sm font-medium text-slate-300">MCP Servers</span>
+                <span className="ml-2 text-xs text-slate-500">(Team-wide)</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowMcpRawEditor(!showMcpRawEditor); setMcpRawJson(JSON.stringify(mcpServers, null, 2)); setMcpRawError(''); }}
+                className="text-xs text-blue-400 hover:text-blue-300"
+              >
+                {showMcpRawEditor ? 'Form Editor' : 'Raw JSON'}
+              </button>
+            </div>
+
+            {showMcpRawEditor ? (
+              <div className="space-y-2">
+                <textarea
+                  value={mcpRawJson}
+                  onChange={(e) => { setMcpRawJson(e.target.value); setMcpRawError(''); }}
+                  rows={10}
+                  className="w-full rounded border border-slate-600 bg-slate-900 px-2.5 py-1.5 font-mono text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                  placeholder="[]"
+                />
+                {mcpRawError && <p className="text-xs text-red-400">{mcpRawError}</p>}
+                <button
+                  type="button"
+                  onClick={applyMcpRawJson}
+                  className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-500"
+                >
+                  Apply JSON
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Configured servers list */}
+                {mcpServers.length > 0 && (
+                  <div className="mb-3 space-y-2">
+                    {mcpServers.map((srv, idx) => (
+                      <div key={idx} className="flex items-center justify-between rounded bg-slate-900/50 px-3 py-2">
+                        <div className="min-w-0 flex-1">
+                          <span className="text-sm font-medium text-white">{srv.name}</span>
+                          <span className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
+                            srv.transport === 'stdio' ? 'bg-purple-500/20 text-purple-400' : 'bg-cyan-500/20 text-cyan-400'
+                          }`}>
+                            {srv.transport}
+                          </span>
+                          <span className="ml-2 truncate text-xs text-slate-500">
+                            {srv.transport === 'stdio' ? `${srv.command} ${(srv.args ?? []).join(' ')}` : srv.url}
+                          </span>
+                        </div>
+                        <div className="ml-2 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => startEditMcpServer(idx)}
+                            className="text-xs text-blue-400 hover:text-blue-300"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeMcpServer(idx)}
+                            className="text-xs text-red-400 hover:text-red-300"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add server form */}
+                <div className="space-y-3 rounded border border-dashed border-slate-600 p-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs text-slate-400">Server Name *</label>
+                      <input
+                        type="text"
+                        value={mcpDraft.name ?? ''}
+                        onChange={(e) => setMcpDraft({ ...mcpDraft, name: e.target.value })}
+                        className="w-full rounded border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                        placeholder="postgres-db"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-slate-400">Transport *</label>
+                      <select
+                        value={mcpDraft.transport ?? 'stdio'}
+                        onChange={(e) => setMcpDraft({ ...mcpDraft, transport: e.target.value as McpTransport })}
+                        className="w-full rounded border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+                      >
+                        <option value="stdio">stdio (local command)</option>
+                        <option value="http">http (remote server)</option>
+                        <option value="sse">sse (server-sent events)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Conditional fields based on transport */}
+                  {(mcpDraft.transport ?? 'stdio') === 'stdio' ? (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="mb-1 block text-xs text-slate-400">Command *</label>
+                        <input
+                          type="text"
+                          value={mcpDraft.command ?? ''}
+                          onChange={(e) => setMcpDraft({ ...mcpDraft, command: e.target.value })}
+                          className="w-full rounded border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                          placeholder="npx"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-slate-400">Arguments (comma-separated)</label>
+                        <input
+                          type="text"
+                          value={mcpArgsText}
+                          onChange={(e) => setMcpArgsText(e.target.value)}
+                          className="w-full rounded border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                          placeholder="-y, @modelcontextprotocol/server-postgres"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-slate-400">Environment Variables</label>
+                        {mcpDraft.env && Object.keys(mcpDraft.env).length > 0 && (
+                          <div className="mb-2 flex flex-wrap gap-1.5">
+                            {Object.entries(mcpDraft.env).map(([k, v]) => (
+                              <span key={k} className="inline-flex items-center gap-1 rounded bg-slate-700 px-2 py-1 text-xs text-slate-200">
+                                <span className="font-medium">{k}</span>=<span className="truncate max-w-[150px] text-slate-400">{v}</span>
+                                <button type="button" onClick={() => removeMcpEnvVar(k)} className="ml-1 text-slate-400 hover:text-red-400">&times;</button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={mcpEnvKey}
+                            onChange={(e) => setMcpEnvKey(e.target.value)}
+                            className="flex-1 rounded border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                            placeholder="Key"
+                          />
+                          <input
+                            type="text"
+                            value={mcpEnvValue}
+                            onChange={(e) => setMcpEnvValue(e.target.value)}
+                            className="flex-1 rounded border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                            placeholder="Value"
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addMcpEnvVar(); } }}
+                          />
+                          <button type="button" onClick={addMcpEnvVar} className="rounded bg-slate-700 px-2 py-1.5 text-xs text-white hover:bg-slate-600">Add</button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="mb-1 block text-xs text-slate-400">URL *</label>
+                        <input
+                          type="text"
+                          value={mcpDraft.url ?? ''}
+                          onChange={(e) => setMcpDraft({ ...mcpDraft, url: e.target.value })}
+                          className="w-full rounded border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                          placeholder="https://api.example.com/mcp/"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-slate-400">Headers</label>
+                        {mcpDraft.headers && Object.keys(mcpDraft.headers).length > 0 && (
+                          <div className="mb-2 flex flex-wrap gap-1.5">
+                            {Object.entries(mcpDraft.headers).map(([k, v]) => (
+                              <span key={k} className="inline-flex items-center gap-1 rounded bg-slate-700 px-2 py-1 text-xs text-slate-200">
+                                <span className="font-medium">{k}</span>: <span className="truncate max-w-[150px] text-slate-400">{v}</span>
+                                <button type="button" onClick={() => removeMcpHeader(k)} className="ml-1 text-slate-400 hover:text-red-400">&times;</button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={mcpHeaderKey}
+                            onChange={(e) => setMcpHeaderKey(e.target.value)}
+                            className="flex-1 rounded border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                            placeholder="Header name"
+                          />
+                          <input
+                            type="text"
+                            value={mcpHeaderValue}
+                            onChange={(e) => setMcpHeaderValue(e.target.value)}
+                            className="flex-1 rounded border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                            placeholder="Header value"
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addMcpHeader(); } }}
+                          />
+                          <button type="button" onClick={addMcpHeader} className="rounded bg-slate-700 px-2 py-1.5 text-xs text-white hover:bg-slate-600">Add</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={addMcpServer}
+                      className="flex-1 rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-500"
+                    >
+                      {editingMcpIndex !== null ? 'Save MCP Server' : 'Add MCP Server'}
+                    </button>
+                    {editingMcpIndex !== null && (
+                      <button
+                        type="button"
+                        onClick={cancelEditMcpServer}
+                        className="rounded bg-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-600"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+            <p className="mt-2 text-xs text-slate-500">MCP servers provide external tool access (databases, APIs, services) to all agents in the team.</p>
+          </div>
         </div>
       )}
 
@@ -690,6 +1110,26 @@ export function TeamBuilderPage() {
               ))}
             </div>
           </div>
+          {mcpServers.length > 0 && (
+            <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
+              <h3 className="mb-3 text-sm font-medium text-slate-300">MCP Servers ({mcpServers.length})</h3>
+              <div className="space-y-1">
+                {mcpServers.map((srv) => (
+                  <div key={srv.name} className="flex items-center gap-2 rounded bg-slate-900/50 px-3 py-1.5 text-sm">
+                    <span className="font-medium text-white">{srv.name}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${
+                      srv.transport === 'stdio' ? 'bg-purple-500/20 text-purple-400' : 'bg-cyan-500/20 text-cyan-400'
+                    }`}>
+                      {srv.transport}
+                    </span>
+                    <span className="truncate text-xs text-slate-500">
+                      {srv.transport === 'stdio' ? `${srv.command} ${(srv.args ?? []).join(' ')}` : srv.url}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
             <h3 className="mb-2 text-sm font-medium text-slate-300">JSON Preview</h3>
             <pre className="max-h-48 overflow-auto rounded bg-slate-900 p-3 font-mono text-xs text-slate-300">
@@ -699,6 +1139,7 @@ export function TeamBuilderPage() {
                   description: description || undefined,
                   workspace_path: workspacePath || undefined,
                   provider,
+                  mcp_servers: mcpServers.length > 0 ? mcpServers : undefined,
                   agents: agents.map((a, i) => {
                     if (i === 0) {
                       return {

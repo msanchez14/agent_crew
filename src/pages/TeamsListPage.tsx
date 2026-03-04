@@ -181,9 +181,16 @@ export function TeamsListPage() {
                 {team.status_message}
               </p>
             )}
-            <div className="mb-4 flex items-center gap-4 text-xs text-slate-500">
+            <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
               <span>{team.agents?.length ?? 0} agents</span>
               <span className="font-mono">{team.runtime === 'kubernetes' ? '☸️' : '🐳'} {team.runtime}</span>
+              {(() => {
+                const leader = team.agents?.find(a => a.role === 'leader');
+                const model = leader?.sub_agent_model;
+                if (!model || model === 'inherit') return null;
+                const short = model.includes('/') ? model.split('/').pop()! : model;
+                return <span className="font-mono truncate max-w-[160px]" title={model}>{short}</span>;
+              })()}
             </div>
             <div className="flex items-center gap-2">
               {(team.status === 'stopped' || team.status === 'error') && (

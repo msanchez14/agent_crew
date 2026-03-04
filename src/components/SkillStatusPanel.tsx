@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import type { Agent, SkillStatus, TaskLog } from '../types';
-import { agentsApi } from '../services/api';
+import type { Agent, SkillStatus, TaskLog, McpServerConfig, McpServerStatus, McpTransport } from '../types';
+import { agentsApi, teamsApi } from '../services/api';
 import { toast } from './Toast';
 import { friendlyError } from '../utils/errors';
 
@@ -543,6 +543,9 @@ interface SettingsModalProps {
   agents: Agent[];
   teamId: string;
   onSkillInstalled: () => void;
+  teamStatus?: string;
+  teamMcpServers?: McpServerConfig[];
+  teamMcpStatuses?: McpServerStatus[];
 }
 
 export function SettingsModal({
@@ -551,6 +554,9 @@ export function SettingsModal({
   agents,
   teamId,
   onSkillInstalled,
+  teamStatus,
+  teamMcpServers,
+  teamMcpStatuses,
 }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState('skills');
   const [repoUrl, setRepoUrl] = useState('');
@@ -561,9 +567,121 @@ export function SettingsModal({
   const [pendingTab, setPendingTab] = useState<string | null>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
 
+  // MCP state
+  const [mcpServers, setMcpServers] = useState<McpServerConfig[]>([]);
+  const [mcpStatuses, setMcpStatuses] = useState<McpServerStatus[]>([]);
+  const [mcpDraft, setMcpDraft] = useState<Partial<McpServerConfig>>({ transport: 'stdio' });
+  const [mcpArgsText, setMcpArgsText] = useState('');
+  const [mcpEnvKey, setMcpEnvKey] = useState('');
+  const [mcpEnvValue, setMcpEnvValue] = useState('');
+  const [mcpHeaderKey, setMcpHeaderKey] = useState('');
+  const [mcpHeaderValue, setMcpHeaderValue] = useState('');
+  const [mcpAdding, setMcpAdding] = useState(false);
+  const [mcpRemoving, setMcpRemoving] = useState<string | null>(null);
+  const [editingMcpName, setEditingMcpName] = useState<string | null>(null);
+
   const installableAgents = agents.filter((a) => a.role === 'worker' || a.role === 'leader');
   const leaderAgent = agents.find((a) => a.role === 'leader');
   const workerAgents = agents.filter((a) => a.role === 'worker');
+
+  useEffect(() => {
+    if (teamMcpServers) setMcpServers(teamMcpServers);
+    if (teamMcpStatuses) setMcpStatuses(teamMcpStatuses);
+  }, [teamMcpServers, teamMcpStatuses]);
+
+  async function handleAddMcpServer() {
+    const name = (mcpDraft.name ?? '').trim();
+    if (!name) { toast('error', 'Server name is required'); return; }
+    if (!/^[a-zA-Z0-9_-]+$/.test(name)) { toast('error', 'Invalid server name'); return; }
+    const transport = mcpDraft.transport ?? 'stdio';
+    if (transport === 'stdio' && !mcpDraft.command?.trim()) { toast('error', 'Command is required'); return; }
+    if ((transport === 'http' || transport === 'sse') && !mcpDraft.url?.trim()) { toast('error', 'URL is required'); return; }
+
+    setMcpAdding(true);
+    try {
+      // If editing, remove the old server first.
+      if (editingMcpName) {
+        await teamsApi.removeMcpServer(teamId, editingMcpName);
+      }
+
+      const parsedArgs = mcpArgsText.split(',').map((s) => s.trim()).filter(Boolean);
+      const server: McpServerConfig = {
+        name,
+        transport,
+        command: transport === 'stdio' ? mcpDraft.command?.trim() : undefined,
+        args: transport === 'stdio' && parsedArgs.length > 0 ? parsedArgs : undefined,
+        env: transport === 'stdio' && mcpDraft.env && Object.keys(mcpDraft.env).length > 0 ? mcpDraft.env : undefined,
+        url: transport !== 'stdio' ? mcpDraft.url?.trim() : undefined,
+        headers: transport !== 'stdio' && mcpDraft.headers && Object.keys(mcpDraft.headers).length > 0 ? mcpDraft.headers : undefined,
+      };
+      await teamsApi.addMcpServer(teamId, server);
+      toast('success', editingMcpName ? `MCP server "${name}" updated` : `MCP server "${name}" added`);
+      resetMcpForm();
+      onSkillInstalled(); // triggers team refresh
+    } catch (err) {
+      toast('error', friendlyError(err, editingMcpName ? 'Failed to update MCP server' : 'Failed to add MCP server'));
+    } finally {
+      setMcpAdding(false);
+    }
+  }
+
+  function startEditMcpServer(srv: McpServerConfig) {
+    setEditingMcpName(srv.name);
+    setMcpDraft({
+      name: srv.name,
+      transport: srv.transport,
+      command: srv.command,
+      url: srv.url,
+      env: srv.env ? { ...srv.env } : undefined,
+      headers: srv.headers ? { ...srv.headers } : undefined,
+    });
+    setMcpArgsText((srv.args ?? []).join(', '));
+  }
+
+  function resetMcpForm() {
+    setEditingMcpName(null);
+    setMcpDraft({ transport: 'stdio' });
+    setMcpArgsText('');
+    setMcpEnvKey(''); setMcpEnvValue('');
+    setMcpHeaderKey(''); setMcpHeaderValue('');
+  }
+
+  async function handleRemoveMcpServer(serverName: string) {
+    setMcpRemoving(serverName);
+    try {
+      await teamsApi.removeMcpServer(teamId, serverName);
+      toast('success', `MCP server "${serverName}" removed`);
+      onSkillInstalled(); // triggers team refresh
+    } catch (err) {
+      toast('error', friendlyError(err, 'Failed to remove MCP server'));
+    } finally {
+      setMcpRemoving(null);
+    }
+  }
+
+  function addMcpDraftEnvVar() {
+    const k = mcpEnvKey.trim(); const v = mcpEnvValue.trim();
+    if (!k) return;
+    setMcpDraft({ ...mcpDraft, env: { ...(mcpDraft.env ?? {}), [k]: v } });
+    setMcpEnvKey(''); setMcpEnvValue('');
+  }
+
+  function removeMcpDraftEnvVar(key: string) {
+    const env = { ...(mcpDraft.env ?? {}) }; delete env[key];
+    setMcpDraft({ ...mcpDraft, env });
+  }
+
+  function addMcpDraftHeader() {
+    const k = mcpHeaderKey.trim(); const v = mcpHeaderValue.trim();
+    if (!k) return;
+    setMcpDraft({ ...mcpDraft, headers: { ...(mcpDraft.headers ?? {}), [k]: v } });
+    setMcpHeaderKey(''); setMcpHeaderValue('');
+  }
+
+  function removeMcpDraftHeader(key: string) {
+    const h = { ...(mcpDraft.headers ?? {}) }; delete h[key];
+    setMcpDraft({ ...mcpDraft, headers: h });
+  }
 
   // Select first installable agent by default when modal opens
   useEffect(() => {
@@ -634,7 +752,7 @@ export function SettingsModal({
     : null;
 
   // Content header label
-  const contentHeaderLabel = activeAgent ? activeAgent.name : 'Skills';
+  const contentHeaderLabel = activeAgent ? activeAgent.name : activeTab === 'mcp' ? 'MCP Servers' : 'Skills';
 
   async function handleInstallSkill() {
     const trimmedRepo = repoUrl.trim();
@@ -800,6 +918,27 @@ export function SettingsModal({
               {totalFailed > 0 && (
                 <span className="ml-auto rounded-full bg-red-500/20 px-1.5 py-0.5 text-xs text-red-400">
                   {totalFailed}
+                </span>
+              )}
+            </button>
+
+            {/* MCP tab */}
+            <button
+              onClick={() => handleTabSwitch('mcp')}
+              className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
+                activeTab === 'mcp'
+                  ? 'bg-blue-600/20 text-blue-400'
+                  : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-300'
+              }`}
+              data-testid="settings-tab-mcp"
+            >
+              <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+              </svg>
+              MCP Servers
+              {mcpServers.length > 0 && (
+                <span className="ml-auto rounded-full bg-slate-700 px-1.5 py-0.5 text-xs text-slate-400">
+                  {mcpServers.length}
                 </span>
               )}
             </button>
@@ -992,6 +1131,151 @@ export function SettingsModal({
                   agent={activeAgent}
                   onDirtyChange={setIsDirty}
                 />
+              </div>
+            )}
+
+            {activeTab === 'mcp' && (
+              <div className="space-y-4 overflow-y-auto">
+                {/* Current MCP servers status */}
+                {mcpServers.length > 0 ? (
+                  <div className="space-y-2">
+                    {mcpServers.map((srv) => {
+                      const status = mcpStatuses.find((s) => s.name === srv.name);
+                      return (
+                        <div key={srv.name} className="flex items-center justify-between rounded-lg border border-slate-700/50 bg-slate-800/30 px-3 py-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className={`h-2 w-2 rounded-full ${
+                                status?.status === 'error' ? 'bg-red-400' : status?.status === 'configured' ? 'bg-green-400' : 'bg-slate-500'
+                              }`} />
+                              <span className="text-sm font-medium text-white">{srv.name}</span>
+                              <span className={`rounded-full px-2 py-0.5 text-xs ${
+                                srv.transport === 'stdio' ? 'bg-purple-500/20 text-purple-400' : 'bg-cyan-500/20 text-cyan-400'
+                              }`}>{srv.transport}</span>
+                            </div>
+                            <p className="mt-0.5 truncate text-xs text-slate-500">
+                              {srv.transport === 'stdio' ? `${srv.command} ${(srv.args ?? []).join(' ')}` : srv.url}
+                            </p>
+                            {status?.error && (
+                              <p className="mt-1 text-xs text-red-400">{status.error}</p>
+                            )}
+                          </div>
+                          <div className="ml-2 flex gap-2">
+                            {teamStatus === 'running' && (
+                              <button
+                                onClick={() => startEditMcpServer(srv)}
+                                className="text-xs text-blue-400 hover:text-blue-300"
+                              >
+                                Edit
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleRemoveMcpServer(srv.name)}
+                              disabled={mcpRemoving === srv.name}
+                              className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+                            >
+                              {mcpRemoving === srv.name ? 'Removing...' : 'Remove'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center">
+                    <svg className="mx-auto h-8 w-8 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                    </svg>
+                    <p className="mt-2 text-sm text-slate-500">No MCP servers configured</p>
+                    <p className="mt-1 text-xs text-slate-600">Add servers below to give agents access to external tools</p>
+                  </div>
+                )}
+
+                {/* Add MCP server form */}
+                {teamStatus === 'running' && (
+                  <div className="rounded-lg border border-dashed border-slate-700 p-4" data-testid="add-mcp-form">
+                    <div className="mb-3 flex items-center justify-between">
+                      <h4 className="text-sm font-medium text-slate-300">
+                        {editingMcpName ? `Edit MCP Server: ${editingMcpName}` : 'Add MCP Server'}
+                      </h4>
+                      {editingMcpName && (
+                        <button onClick={resetMcpForm} className="text-xs text-slate-400 hover:text-slate-300">Cancel</button>
+                      )}
+                    </div>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-xs text-slate-400">Name *</label>
+                          <input type="text" value={mcpDraft.name ?? ''} onChange={(e) => setMcpDraft({ ...mcpDraft, name: e.target.value })} className="w-full rounded border border-slate-600 bg-slate-800 px-2.5 py-1.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none" placeholder="server-name" />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs text-slate-400">Transport *</label>
+                          <select value={mcpDraft.transport ?? 'stdio'} onChange={(e) => setMcpDraft({ ...mcpDraft, transport: e.target.value as McpTransport })} className="w-full rounded border border-slate-600 bg-slate-800 px-2.5 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none">
+                            <option value="stdio">stdio</option>
+                            <option value="http">http</option>
+                            <option value="sse">sse</option>
+                          </select>
+                        </div>
+                      </div>
+                      {(mcpDraft.transport ?? 'stdio') === 'stdio' ? (
+                        <>
+                          <div>
+                            <label className="mb-1 block text-xs text-slate-400">Command *</label>
+                            <input type="text" value={mcpDraft.command ?? ''} onChange={(e) => setMcpDraft({ ...mcpDraft, command: e.target.value })} className="w-full rounded border border-slate-600 bg-slate-800 px-2.5 py-1.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none" placeholder="npx" />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs text-slate-400">Args (comma-separated)</label>
+                            <input type="text" value={mcpArgsText} onChange={(e) => setMcpArgsText(e.target.value)} className="w-full rounded border border-slate-600 bg-slate-800 px-2.5 py-1.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none" placeholder="-y, @modelcontextprotocol/server-postgres" />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs text-slate-400">Environment Variables</label>
+                            {mcpDraft.env && Object.keys(mcpDraft.env).length > 0 && (
+                              <div className="mb-2 flex flex-wrap gap-1.5">
+                                {Object.entries(mcpDraft.env).map(([k, v]) => (
+                                  <span key={k} className="inline-flex items-center gap-1 rounded bg-slate-700 px-2 py-1 text-xs text-slate-200">
+                                    {k}={v} <button type="button" onClick={() => removeMcpDraftEnvVar(k)} className="text-slate-400 hover:text-red-400">&times;</button>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            <div className="flex gap-2">
+                              <input type="text" value={mcpEnvKey} onChange={(e) => setMcpEnvKey(e.target.value)} className="flex-1 rounded border border-slate-600 bg-slate-800 px-2.5 py-1.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none" placeholder="Key" />
+                              <input type="text" value={mcpEnvValue} onChange={(e) => setMcpEnvValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addMcpDraftEnvVar(); } }} className="flex-1 rounded border border-slate-600 bg-slate-800 px-2.5 py-1.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none" placeholder="Value" />
+                              <button type="button" onClick={addMcpDraftEnvVar} className="rounded bg-slate-700 px-2 py-1.5 text-xs text-white hover:bg-slate-600">Add</button>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div>
+                            <label className="mb-1 block text-xs text-slate-400">URL *</label>
+                            <input type="text" value={mcpDraft.url ?? ''} onChange={(e) => setMcpDraft({ ...mcpDraft, url: e.target.value })} className="w-full rounded border border-slate-600 bg-slate-800 px-2.5 py-1.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none" placeholder="https://api.example.com/mcp/" />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs text-slate-400">Headers</label>
+                            {mcpDraft.headers && Object.keys(mcpDraft.headers).length > 0 && (
+                              <div className="mb-2 flex flex-wrap gap-1.5">
+                                {Object.entries(mcpDraft.headers).map(([k, v]) => (
+                                  <span key={k} className="inline-flex items-center gap-1 rounded bg-slate-700 px-2 py-1 text-xs text-slate-200">
+                                    {k}: {v} <button type="button" onClick={() => removeMcpDraftHeader(k)} className="text-slate-400 hover:text-red-400">&times;</button>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            <div className="flex gap-2">
+                              <input type="text" value={mcpHeaderKey} onChange={(e) => setMcpHeaderKey(e.target.value)} className="flex-1 rounded border border-slate-600 bg-slate-800 px-2.5 py-1.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none" placeholder="Header" />
+                              <input type="text" value={mcpHeaderValue} onChange={(e) => setMcpHeaderValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addMcpDraftHeader(); } }} className="flex-1 rounded border border-slate-600 bg-slate-800 px-2.5 py-1.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none" placeholder="Value" />
+                              <button type="button" onClick={addMcpDraftHeader} className="rounded bg-slate-700 px-2 py-1.5 text-xs text-white hover:bg-slate-600">Add</button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                      <button onClick={handleAddMcpServer} disabled={mcpAdding} className="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50" data-testid="mcp-add-button">
+                        {mcpAdding ? (editingMcpName ? 'Saving...' : 'Adding...') : (editingMcpName ? 'Save MCP Server' : 'Add MCP Server')}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

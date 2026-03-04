@@ -19,6 +19,30 @@ export interface SkillStatus {
   error?: string;
 }
 
+export type McpTransport = 'stdio' | 'http' | 'sse';
+
+export interface McpServerConfig {
+  name: string;
+  transport: McpTransport;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
+}
+
+export interface McpServerStatus {
+  name: string;
+  status: 'configured' | 'error';
+  error?: string;
+}
+
+export interface McpConfigResponse {
+  content: string;
+  path: string;
+  provider: string;
+}
+
 export interface Team {
   id: string;
   name: string;
@@ -28,6 +52,8 @@ export interface Team {
   runtime: string;
   workspace_path: string;
   provider: AgentProvider;
+  mcp_servers?: McpServerConfig[];
+  mcp_statuses?: McpServerStatus[];
   agents?: Agent[];
   created_at: string;
   updated_at: string;
@@ -80,6 +106,7 @@ export interface CreateTeamRequest {
   runtime?: string;
   workspace_path?: string;
   provider?: AgentProvider;
+  mcp_servers?: McpServerConfig[];
   agents?: CreateAgentInput[];
 }
 
@@ -88,6 +115,7 @@ export interface UpdateTeamRequest {
   description?: string;
   workspace_path?: string;
   provider?: AgentProvider;
+  mcp_servers?: McpServerConfig[];
 }
 
 export interface CreateAgentInput {
@@ -122,7 +150,7 @@ export interface AgentInstructions {
   path: string;
 }
 
-export type ActivityEventType = 'tool_use' | 'assistant' | 'tool_result' | 'error';
+export type ActivityEventType = 'tool_use' | 'assistant' | 'reasoning' | 'tool_result' | 'error';
 
 export interface ActivityEvent {
   event_type: ActivityEventType;
@@ -205,5 +233,62 @@ export interface UpdateScheduleRequest {
   prompt?: string;
   cron_expression?: string;
   timezone?: string;
+  enabled?: boolean;
+}
+
+// Webhooks
+
+export type WebhookStatus = 'idle' | 'running';
+
+export type WebhookRunStatus = 'running' | 'success' | 'failed' | 'timeout';
+
+export interface Webhook {
+  id: string;
+  name: string;
+  team_id: string;
+  team?: { id: string; name: string };
+  prompt_template: string;
+  secret_prefix: string;
+  enabled: boolean;
+  timeout_seconds: number;
+  max_concurrent: number;
+  last_triggered_at: string | null;
+  status: WebhookStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WebhookWithToken {
+  token: string;
+  webhook: Webhook;
+}
+
+export interface WebhookRun {
+  id: string;
+  webhook_id: string;
+  started_at: string;
+  finished_at: string | null;
+  status: WebhookRunStatus;
+  error: string;
+  prompt_sent?: string;
+  response_received?: string;
+  request_payload?: string;
+  caller_ip?: string;
+}
+
+export interface CreateWebhookRequest {
+  name: string;
+  team_id: string;
+  prompt_template: string;
+  timeout_seconds?: number;
+  max_concurrent?: number;
+  enabled?: boolean;
+}
+
+export interface UpdateWebhookRequest {
+  name?: string;
+  prompt_template?: string;
+  timeout_seconds?: number;
+  max_concurrent?: number;
   enabled?: boolean;
 }

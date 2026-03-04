@@ -93,6 +93,13 @@ describe('extractActivityEvent', () => {
     expect(extractActivityEvent(nullLog)).toBeNull();
   });
 
+  it('extracts reasoning event type (OpenCode chain-of-thought)', () => {
+    const log = makeActivityLog({ eventOverrides: { event_type: 'reasoning', action: 'Thinking about the problem' } });
+    const event = extractActivityEvent(log);
+    expect(event).not.toBeNull();
+    expect(event!.event_type).toBe('reasoning');
+  });
+
   it('returns null for invalid event_type', () => {
     const invalidLog = makeActivityLog({ eventOverrides: { event_type: 'unknown_type' } });
     expect(extractActivityEvent(invalidLog)).toBeNull();
@@ -251,6 +258,10 @@ describe('classifyActivityEvent', () => {
     expect(classifyActivityEvent(event)).toBe('text');
   });
 
+  it('classifies reasoning events as thinking', () => {
+    expect(classifyActivityEvent(makeEvent({ event_type: 'reasoning' }))).toBe('thinking');
+  });
+
   it('classifies assistant without content items as text', () => {
     expect(classifyActivityEvent(makeEvent())).toBe('text');
   });
@@ -367,6 +378,21 @@ describe('ActivityEventCard', () => {
     expect(screen.getByText('thinking')).toBeInTheDocument();
     expect(screen.getByText('Let me analyze this problem carefully')).toBeInTheDocument();
     // Verify muted styling (opacity)
+    const card = screen.getByTestId('activity-event-card');
+    expect(card.className).toContain('opacity-60');
+  });
+
+  it('renders reasoning event as thinking with muted styling', () => {
+    const log = makeActivityLog({
+      eventOverrides: {
+        event_type: 'reasoning',
+        tool_name: undefined,
+        action: 'Evaluating the best approach',
+      },
+    });
+    render(<ActivityEventCard log={log} />);
+    expect(screen.getByTestId('icon-thinking')).toBeInTheDocument();
+    expect(screen.getByText('thinking')).toBeInTheDocument();
     const card = screen.getByTestId('activity-event-card');
     expect(card.className).toContain('opacity-60');
   });

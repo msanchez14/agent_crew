@@ -8,6 +8,9 @@ import { SchedulesListPage } from './pages/SchedulesListPage';
 import { ScheduleBuilderPage } from './pages/ScheduleBuilderPage';
 import { ScheduleDetailPage } from './pages/ScheduleDetailPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { WebhooksListPage } from './pages/WebhooksListPage';
+import { WebhookBuilderPage } from './pages/WebhookBuilderPage';
+import { WebhookDetailPage } from './pages/WebhookDetailPage';
 
 export default function App() {
   return (
@@ -20,6 +23,9 @@ export default function App() {
           <Route path="/schedules" element={<SchedulesListPage />} />
           <Route path="/schedules/new" element={<ScheduleBuilderPage />} />
           <Route path="/schedules/:id" element={<ScheduleDetailPage />} />
+          <Route path="/webhooks" element={<WebhooksListPage />} />
+          <Route path="/webhooks/new" element={<WebhookBuilderPage />} />
+          <Route path="/webhooks/:id" element={<WebhookDetailPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Routes>

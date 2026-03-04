@@ -189,6 +189,11 @@ export function TeamMonitorPage() {
           fetchTeam();
         }
 
+        // Refresh team data on mcp_status messages
+        if (log.message_type === 'mcp_status') {
+          fetchTeam();
+        }
+
         // Route to activity panel (all message types)
         setActivityMessages((prev) => {
           if (prev.some((m) => m.id === log.id)) return prev;
@@ -508,6 +513,9 @@ export function TeamMonitorPage() {
           agents={team.agents}
           teamId={teamId}
           onSkillInstalled={fetchTeam}
+          teamStatus={team.status}
+          teamMcpServers={team.mcp_servers}
+          teamMcpStatuses={team.mcp_statuses}
         />
       )}
 
