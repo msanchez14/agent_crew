@@ -251,17 +251,32 @@ export function TeamBuilderPage() {
     }
 
     const parsedArgs = mcpArgsText.split(',').map((s) => s.trim()).filter(Boolean);
+
+    // Auto-include any pending env var typed into the key/value inputs.
+    const pendingEnvKey = mcpEnvKey.trim();
+    const mergedEnv = { ...(mcpDraft.env ?? {}) };
+    if (pendingEnvKey) {
+      mergedEnv[pendingEnvKey] = mcpEnvValue.trim();
+    }
+
+    // Auto-include any pending header typed into the key/value inputs.
+    const pendingHeaderKey = mcpHeaderKey.trim();
+    const mergedHeaders = { ...(mcpDraft.headers ?? {}) };
+    if (pendingHeaderKey) {
+      mergedHeaders[pendingHeaderKey] = mcpHeaderValue.trim();
+    }
+
     const server: McpServerConfig = {
       name,
       transport,
       ...(transport === 'stdio' && {
         command: mcpDraft.command?.trim(),
         args: parsedArgs.length > 0 ? parsedArgs : undefined,
-        env: mcpDraft.env && Object.keys(mcpDraft.env).length > 0 ? mcpDraft.env : undefined,
+        env: Object.keys(mergedEnv).length > 0 ? mergedEnv : undefined,
       }),
       ...((transport === 'http' || transport === 'sse') && {
         url: mcpDraft.url?.trim(),
-        headers: mcpDraft.headers && Object.keys(mcpDraft.headers).length > 0 ? mcpDraft.headers : undefined,
+        headers: Object.keys(mergedHeaders).length > 0 ? mergedHeaders : undefined,
       }),
     };
 

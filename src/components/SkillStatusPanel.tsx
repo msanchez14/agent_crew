@@ -605,14 +605,29 @@ export function SettingsModal({
       }
 
       const parsedArgs = mcpArgsText.split(',').map((s) => s.trim()).filter(Boolean);
+
+      // Auto-include any pending env var typed into the key/value inputs.
+      const pendingEnvKey = mcpEnvKey.trim();
+      const mergedEnv = { ...(mcpDraft.env ?? {}) };
+      if (pendingEnvKey) {
+        mergedEnv[pendingEnvKey] = mcpEnvValue.trim();
+      }
+
+      // Auto-include any pending header typed into the key/value inputs.
+      const pendingHeaderKey = mcpHeaderKey.trim();
+      const mergedHeaders = { ...(mcpDraft.headers ?? {}) };
+      if (pendingHeaderKey) {
+        mergedHeaders[pendingHeaderKey] = mcpHeaderValue.trim();
+      }
+
       const server: McpServerConfig = {
         name,
         transport,
         command: transport === 'stdio' ? mcpDraft.command?.trim() : undefined,
         args: transport === 'stdio' && parsedArgs.length > 0 ? parsedArgs : undefined,
-        env: transport === 'stdio' && mcpDraft.env && Object.keys(mcpDraft.env).length > 0 ? mcpDraft.env : undefined,
+        env: transport === 'stdio' && Object.keys(mergedEnv).length > 0 ? mergedEnv : undefined,
         url: transport !== 'stdio' ? mcpDraft.url?.trim() : undefined,
-        headers: transport !== 'stdio' && mcpDraft.headers && Object.keys(mcpDraft.headers).length > 0 ? mcpDraft.headers : undefined,
+        headers: transport !== 'stdio' && Object.keys(mergedHeaders).length > 0 ? mergedHeaders : undefined,
       };
       await teamsApi.addMcpServer(teamId, server);
       toast('success', editingMcpName ? `MCP server "${name}" updated` : `MCP server "${name}" added`);
