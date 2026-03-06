@@ -341,11 +341,14 @@ export function PostActionBindingsSection({ triggerType, triggerId, onBindingCha
                   placeholder="Leave empty to use the post-action's default body template"
                 />
                 <p className="mt-1 text-xs text-slate-500">
-                  Variables: <code className="text-slate-400">{'{{.Status}}'}</code>,{' '}
-                  <code className="text-slate-400">{'{{.TriggerName}}'}</code>,{' '}
-                  <code className="text-slate-400">{'{{.RunID}}'}</code>,{' '}
-                  <code className="text-slate-400">{'{{.Error}}'}</code>,{' '}
-                  <code className="text-slate-400">{'{{.Response}}'}</code>
+                  Variables: <code className="text-slate-400">{'{{status}}'}</code>,{' '}
+                  <code className="text-slate-400">{'{{trigger_name}}'}</code>,{' '}
+                  <code className="text-slate-400">{'{{trigger_type}}'}</code>,{' '}
+                  <code className="text-slate-400">{'{{run_id}}'}</code>,{' '}
+                  <code className="text-slate-400">{'{{error}}'}</code>,{' '}
+                  <code className="text-slate-400">{'{{response}}'}</code>,{' '}
+                  <code className="text-slate-400">{'{{team_name}}'}</code>,{' '}
+                  <code className="text-slate-400">{'{{prompt}}'}</code>
                 </p>
               </div>
 

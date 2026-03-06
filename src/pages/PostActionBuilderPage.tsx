@@ -254,15 +254,19 @@ export function PostActionBuilderPage() {
             onChange={(e) => setBodyTemplate(e.target.value)}
             rows={6}
             className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 font-mono text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
-            placeholder={'{\n  "text": "Run {{.Status}} for {{.SourceType}} {{.TriggerName}}"\n}'}
+            placeholder={'{\n  "text": "Run {{status}} for {{trigger_type}} {{trigger_name}}"\n}'}
           />
           <p className="mt-1 text-xs text-slate-500">
-            Available variables: <code className="text-slate-400">{'{{.Status}}'}</code>,{' '}
-            <code className="text-slate-400">{'{{.SourceType}}'}</code>,{' '}
-            <code className="text-slate-400">{'{{.TriggerName}}'}</code>,{' '}
-            <code className="text-slate-400">{'{{.RunID}}'}</code>,{' '}
-            <code className="text-slate-400">{'{{.Error}}'}</code>,{' '}
-            <code className="text-slate-400">{'{{.Response}}'}</code>
+            Available variables: <code className="text-slate-400">{'{{status}}'}</code>,{' '}
+            <code className="text-slate-400">{'{{trigger_type}}'}</code>,{' '}
+            <code className="text-slate-400">{'{{trigger_name}}'}</code>,{' '}
+            <code className="text-slate-400">{'{{run_id}}'}</code>,{' '}
+            <code className="text-slate-400">{'{{error}}'}</code>,{' '}
+            <code className="text-slate-400">{'{{response}}'}</code>,{' '}
+            <code className="text-slate-400">{'{{team_name}}'}</code>,{' '}
+            <code className="text-slate-400">{'{{started_at}}'}</code>,{' '}
+            <code className="text-slate-400">{'{{finished_at}}'}</code>,{' '}
+            <code className="text-slate-400">{'{{prompt}}'}</code>
           </p>
         </div>
 
