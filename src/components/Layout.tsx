@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const navItems = [
   {
@@ -45,10 +46,31 @@ const navItems = [
   {
     to: '/settings',
     label: 'Variables',
-    end: false,
+    end: true,
     icon: (
       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M4.745 3A23.933 23.933 0 003 12c0 3.183.62 6.22 1.745 9M19.255 3c.967 2.78 1.5 5.817 1.5 9s-.533 6.22-1.5 9M8.25 8.885l1.444-.89a.75.75 0 011.105.402l2.402 7.206a.75.75 0 001.105.401l1.444-.889" />
+      </svg>
+    ),
+  },
+];
+
+const settingsNavItems = [
+  {
+    to: '/settings/profile',
+    label: 'Profile',
+    icon: (
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+      </svg>
+    ),
+  },
+  {
+    to: '/settings/organization',
+    label: 'Organization',
+    icon: (
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
       </svg>
     ),
   },
@@ -58,21 +80,28 @@ export function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, organization, authConfig, logout } = useAuth();
 
   const showNewTeamButton = location.pathname !== '/' && location.pathname !== '/teams/new';
+  const showAuthNav = authConfig?.provider !== 'noop';
 
   const sidebarContent = (
-    <>
+    <div className="flex h-full flex-col">
       {/* Brand */}
       <div className="flex h-16 items-center gap-2 border-b border-slate-800 px-5">
         <svg className="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
-        <span className="text-lg font-bold text-white">AgentCrew</span>
+        <div className="flex flex-col">
+          <span className="text-lg font-bold text-white">AgentCrew</span>
+          {showAuthNav && organization && (
+            <span className="text-xs text-slate-400">{organization.name}</span>
+          )}
+        </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex flex-col gap-1 p-3">
+      <nav className="flex flex-1 flex-col gap-1 p-3">
         {showNewTeamButton && (
           <button
             onClick={() => {
@@ -105,8 +134,60 @@ export function Layout() {
             {item.label}
           </NavLink>
         ))}
+
+        {/* Settings group (only when auth is active) */}
+        {showAuthNav && (
+          <>
+            <div className="my-2 border-t border-slate-800" />
+            <span className="mb-1 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Settings
+            </span>
+            {settingsNavItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={() => setMobileOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-slate-800 text-white'
+                      : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+                  }`
+                }
+              >
+                {item.icon}
+                {item.label}
+              </NavLink>
+            ))}
+          </>
+        )}
       </nav>
-    </>
+
+      {/* User footer (only when auth is active) */}
+      {showAuthNav && user && (
+        <div className="border-t border-slate-800 p-3">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-white">{user.name}</p>
+              <p className="truncate text-xs text-slate-400">{user.email}</p>
+            </div>
+            <button
+              onClick={() => {
+                logout();
+                navigate('/login');
+              }}
+              className="rounded-md p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+              aria-label="Sign out"
+              title="Sign out"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 
   return (

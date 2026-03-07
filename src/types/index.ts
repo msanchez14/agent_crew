@@ -1,3 +1,108 @@
+// Auth
+
+export type AuthProvider = 'noop' | 'local' | 'oidc' | 'auth0';
+
+export interface AuthConfig {
+  provider: AuthProvider;
+  registration_enabled: boolean;
+  multi_tenant: boolean;
+}
+
+export interface AuthTokens {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+}
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type UserRole = 'admin' | 'member';
+
+export interface User {
+  id: string;
+  org_id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  is_owner: boolean;
+  must_change_password: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Invite {
+  id: string;
+  token?: string;
+  invite_url?: string;
+  email: string;
+  expires_at: string;
+  used_at: string | null;
+  created_at: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  org_name: string;
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface InviteRegisterRequest {
+  token: string;
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface AuthMeResponse {
+  user: User;
+  organization: Organization;
+}
+
+export interface LoginResponse extends AuthTokens {
+  user: User;
+}
+
+export interface RegisterResponse extends AuthTokens {
+  user: User;
+  organization: Organization;
+}
+
+export interface InvitePreview {
+  org_name: string;
+  email: string;
+}
+
+export interface UpdateProfileRequest {
+  name: string;
+}
+
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
+export interface CreateInviteRequest {
+  email?: string;
+}
+
+export interface ResetPasswordResponse {
+  temporary_password: string;
+}
+
+// Teams
+
 export type TeamStatus = 'stopped' | 'deploying' | 'running' | 'error';
 
 export type AgentRole = 'leader' | 'worker';

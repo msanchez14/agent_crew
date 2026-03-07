@@ -30,21 +30,120 @@ import type {
   UpdatePostActionRequest,
   CreateBindingRequest,
   UpdateBindingRequest,
+  AuthConfig,
+  AuthTokens,
+  LoginRequest,
+  LoginResponse,
+  RegisterRequest,
+  RegisterResponse,
+  InviteRegisterRequest,
+  InvitePreview,
+  AuthMeResponse,
+  UpdateProfileRequest,
+  ChangePasswordRequest,
+  User,
+  UserRole,
+  Organization,
+  Invite,
+  CreateInviteRequest,
+  ResetPasswordResponse,
 } from '../types';
+import { getAccessToken, getRefreshToken, setTokens, clearTokens } from './auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 const REQUEST_TIMEOUT_MS = 30_000;
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+
+// Callback invoked on auth failure (set by AuthContext)
+let onAuthFailure: (() => void) | null = null;
+
+export function setOnAuthFailure(cb: () => void): void {
+  onAuthFailure = cb;
+}
+
+function buildHeaders(options?: RequestInit): HeadersInit {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  // Merge any custom headers from options
+  if (options?.headers) {
+    const incoming = options.headers as Record<string, string>;
+    Object.assign(headers, incoming);
+  }
+
+  const token = getAccessToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  return headers;
+}
+
+async function attemptRefresh(): Promise<boolean> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return false;
+
+  try {
+    const res = await fetch(`${API_URL}/api/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!res.ok) return false;
+    const data: AuthTokens = await res.json();
+    setTokens(data.access_token, data.refresh_token);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function handleTokenRefresh(): Promise<boolean> {
+  if (isRefreshing) {
+    return refreshPromise!;
+  }
+  isRefreshing = true;
+  refreshPromise = attemptRefresh().finally(() => {
+    isRefreshing = false;
+    refreshPromise = null;
+  });
+  return refreshPromise;
+}
+
+interface RequestOptions extends RequestInit {
+  _skipAuth?: boolean;
+  _retried?: boolean;
+}
+
+async function request<T>(path: string, options?: RequestOptions): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
+    const headers = options?._skipAuth
+      ? { 'Content-Type': 'application/json', ...(options?.headers as Record<string, string>) }
+      : buildHeaders(options);
+
     const res = await fetch(`${API_URL}${path}`, {
-      headers: { 'Content-Type': 'application/json' },
       ...options,
+      headers,
       signal: options?.signal ?? controller.signal,
     });
+
+    // Handle 401 with token refresh (only for authenticated requests)
+    if (res.status === 401 && !options?._skipAuth && !options?._retried) {
+      const refreshed = await handleTokenRefresh();
+      if (refreshed) {
+        return request<T>(path, { ...options, _retried: true });
+      }
+      clearTokens();
+      onAuthFailure?.();
+      throw new Error('Session expired');
+    }
+
     if (!res.ok) {
       const body = await res.text();
       let message = `Request failed: ${res.status}`;
@@ -290,4 +389,79 @@ export const settingsApi = {
     }),
   delete: (key: string) =>
     request<void>(`/api/settings/${encodeURIComponent(key)}`, { method: 'DELETE' }),
+};
+
+// Auth
+export const authApi = {
+  config: () =>
+    request<AuthConfig>('/api/auth/config', { _skipAuth: true }),
+  login: (data: LoginRequest) =>
+    request<LoginResponse>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      _skipAuth: true,
+    }),
+  register: (data: RegisterRequest) =>
+    request<RegisterResponse>('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      _skipAuth: true,
+    }),
+  refresh: (refreshToken: string) =>
+    request<AuthTokens>('/api/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refresh_token: refreshToken }),
+      _skipAuth: true,
+    }),
+  me: () => request<AuthMeResponse>('/api/auth/me'),
+  updateProfile: (data: UpdateProfileRequest) =>
+    request<User>('/api/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  changePassword: (data: ChangePasswordRequest) =>
+    request<void>('/api/auth/me/password', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  inviteInfo: (token: string) =>
+    request<InvitePreview>(`/api/auth/invite/${encodeURIComponent(token)}`, {
+      _skipAuth: true,
+    }),
+  registerWithInvite: (data: InviteRegisterRequest) =>
+    request<RegisterResponse>('/api/auth/register/invite', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      _skipAuth: true,
+    }),
+};
+
+// Organization
+export const orgApi = {
+  get: () => request<Organization>('/api/org'),
+  update: (data: { name: string }) =>
+    request<Organization>('/api/org', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  members: () => request<User[]>('/api/org/members'),
+  removeMember: (id: string) =>
+    request<void>(`/api/org/members/${id}`, { method: 'DELETE' }),
+  changeRole: (id: string, role: UserRole) =>
+    request<User>(`/api/org/members/${id}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role }),
+    }),
+  resetPassword: (id: string) =>
+    request<ResetPasswordResponse>(`/api/org/members/${id}/reset-password`, {
+      method: 'POST',
+    }),
+  invites: () => request<Invite[]>('/api/org/invites'),
+  createInvite: (data: CreateInviteRequest) =>
+    request<Invite>('/api/org/invites', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  deleteInvite: (id: string) =>
+    request<void>(`/api/org/invites/${id}`, { method: 'DELETE' }),
 };

@@ -1,4 +1,5 @@
 import type { TaskLog } from '../types';
+import { getAccessToken } from './auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -62,7 +63,9 @@ function createConnection(url: string, options: WebSocketOptions): () => void {
   function connect() {
     if (closed) return;
     options.onStateChange?.('connecting');
-    ws = new WebSocket(url);
+    const token = getAccessToken();
+    const wsUrl = token ? `${url}?token=${token}` : url;
+    ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
       retryCount = 0;
