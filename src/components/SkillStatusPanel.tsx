@@ -546,6 +546,7 @@ interface SettingsModalProps {
   teamStatus?: string;
   teamMcpServers?: McpServerConfig[];
   teamMcpStatuses?: McpServerStatus[];
+  teamAgentImage?: string;
 }
 
 export function SettingsModal({
@@ -557,6 +558,7 @@ export function SettingsModal({
   teamStatus,
   teamMcpServers,
   teamMcpStatuses,
+  teamAgentImage,
 }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState('skills');
   const [repoUrl, setRepoUrl] = useState('');
@@ -582,6 +584,15 @@ export function SettingsModal({
   const [expandedMcpErrors, setExpandedMcpErrors] = useState<Set<string>>(new Set());
   const [mcpNeedsRedeploy, setMcpNeedsRedeploy] = useState(false);
   const [redeploying, setRedeploying] = useState(false);
+
+  // Agent image state
+  const [agentImageValue, setAgentImageValue] = useState(teamAgentImage ?? '');
+  const [imageNeedsRedeploy, setImageNeedsRedeploy] = useState(false);
+  const [imageSaving, setImageSaving] = useState(false);
+
+  useEffect(() => {
+    setAgentImageValue(teamAgentImage ?? '');
+  }, [teamAgentImage]);
 
   const installableAgents = agents.filter((a) => a.role === 'worker' || a.role === 'leader');
   const leaderAgent = agents.find((a) => a.role === 'leader');
@@ -712,6 +723,20 @@ export function SettingsModal({
     });
   }
 
+  async function handleSaveAgentImage() {
+    setImageSaving(true);
+    try {
+      await teamsApi.update(teamId, { agent_image: agentImageValue.trim() || undefined });
+      setImageNeedsRedeploy(true);
+      onSkillInstalled(); // triggers team refresh
+      toast('success', 'Agent image updated');
+    } catch (err) {
+      toast('error', friendlyError(err, 'Failed to update agent image'));
+    } finally {
+      setImageSaving(false);
+    }
+  }
+
   async function handleRedeploy() {
     setRedeploying(true);
     try {
@@ -719,6 +744,7 @@ export function SettingsModal({
       await new Promise((r) => setTimeout(r, 1000));
       await teamsApi.deploy(teamId);
       setMcpNeedsRedeploy(false);
+      setImageNeedsRedeploy(false);
       onClose();
       toast('success', 'Team redeployment started');
     } catch (err: unknown) {
@@ -797,7 +823,13 @@ export function SettingsModal({
     : null;
 
   // Content header label
-  const contentHeaderLabel = activeAgent ? activeAgent.name : activeTab === 'mcp' ? 'MCP Servers' : 'Skills';
+  const contentHeaderLabel = activeAgent
+    ? activeAgent.name
+    : activeTab === 'mcp'
+      ? 'MCP Servers'
+      : activeTab === 'agent-image'
+        ? 'Agent Image'
+        : 'Skills';
 
   async function handleInstallSkill() {
     const trimmedRepo = repoUrl.trim();
@@ -935,6 +967,25 @@ export function SettingsModal({
             {leaderAgent && (
               <div className="my-2 border-t border-slate-700" data-testid="settings-sidebar-separator" />
             )}
+
+            {/* Agent Image tab */}
+            <button
+              onClick={() => handleTabSwitch('agent-image')}
+              className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
+                activeTab === 'agent-image'
+                  ? 'bg-blue-600/20 text-blue-400'
+                  : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-300'
+              }`}
+              data-testid="settings-tab-agent-image"
+            >
+              <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+              </svg>
+              Agent Image
+              {imageNeedsRedeploy && (
+                <span className="ml-auto h-2 w-2 rounded-full bg-amber-400" />
+              )}
+            </button>
 
             {/* Skills tab */}
             <button
@@ -1189,6 +1240,81 @@ export function SettingsModal({
                   agent={activeAgent}
                   onDirtyChange={setIsDirty}
                 />
+              </div>
+            )}
+
+            {activeTab === 'agent-image' && (
+              <div className="space-y-4 overflow-y-auto">
+                {/* Redeploy warning banner */}
+                {imageNeedsRedeploy && teamStatus === 'running' && (
+                  <div className="flex items-center justify-between rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3" data-testid="agent-image-redeploy-banner">
+                    <div className="flex items-center gap-2">
+                      <svg className="h-5 w-5 flex-shrink-0 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                      <p className="text-sm text-amber-300">
+                        Agent image changed. Redeploy the team to apply changes.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleRedeploy}
+                      disabled={redeploying}
+                      className="ml-3 flex-shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-500 disabled:opacity-50"
+                      data-testid="agent-image-redeploy-button"
+                    >
+                      {redeploying ? 'Redeploying...' : 'Redeploy Team'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Current image display */}
+                <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-4">
+                  <h4 className="mb-3 text-sm font-medium text-slate-300">Current Image</h4>
+                  <p className="text-sm text-white" data-testid="agent-image-current">
+                    {teamAgentImage || 'Default (provider-based)'}
+                  </p>
+                </div>
+
+                {/* Edit agent image */}
+                {teamStatus === 'running' && (
+                  <div className="rounded-lg border border-dashed border-slate-700 p-4" data-testid="agent-image-edit-form">
+                    <h4 className="mb-3 text-sm font-medium text-slate-300">Change Agent Image</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="mb-1 block text-xs text-slate-400">Docker Image</label>
+                        <input
+                          type="text"
+                          value={agentImageValue}
+                          onChange={(e) => setAgentImageValue(e.target.value)}
+                          className="w-full rounded border border-slate-600 bg-slate-800 px-2.5 py-1.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                          placeholder="Leave empty to use default image"
+                          data-testid="agent-image-input"
+                        />
+                      </div>
+                      {agentImageValue.trim() && (
+                        <div className="flex items-start gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2" data-testid="agent-image-info-banner">
+                          <svg className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <p className="text-xs text-blue-300">
+                            Make sure your image is based on the official AgentCrew agent image.{' '}
+                            <a href="https://agentcrew.helmcode.com/docs/configuration#custom-agent-images" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-200">
+                              See documentation &rarr;
+                            </a>
+                          </p>
+                        </div>
+                      )}
+                      <button
+                        onClick={handleSaveAgentImage}
+                        disabled={imageSaving || agentImageValue === (teamAgentImage ?? '')}
+                        className="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
+                        data-testid="agent-image-save-button"
+                      >
+                        {imageSaving ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

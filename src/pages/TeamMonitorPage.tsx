@@ -516,6 +516,7 @@ export function TeamMonitorPage() {
           teamStatus={team.status}
           teamMcpServers={team.mcp_servers}
           teamMcpStatuses={team.mcp_statuses}
+          teamAgentImage={team.agent_image}
         />
       )}
 

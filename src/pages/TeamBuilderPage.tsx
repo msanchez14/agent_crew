@@ -82,6 +82,7 @@ export function TeamBuilderPage() {
   const [description, setDescription] = useState('');
   const [workspacePath, setWorkspacePath] = useState('');
   const [provider, setProvider] = useState<AgentProvider>('claude');
+  const [agentImage, setAgentImage] = useState('');
 
   // Step 2: Agents
   function defaultInstructionsMd(name: string): string {
@@ -445,6 +446,7 @@ export function TeamBuilderPage() {
         description: description.trim() || undefined,
         workspace_path: workspacePath.trim() || undefined,
         provider,
+        agent_image: agentImage.trim() || undefined,
         mcp_servers: mcpServers.length > 0 ? mcpServers : undefined,
         agents: agents.map((a, i) => {
           if (i === 0) {
@@ -580,6 +582,30 @@ export function TeamBuilderPage() {
               placeholder="/path/to/your/project"
             />
             <p className="mt-1 text-xs text-slate-500">Local directory to mount inside agent containers. Agents can read and write files here.</p>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-300">Custom Agent Image</label>
+            <input
+              value={agentImage}
+              onChange={(e) => setAgentImage(e.target.value)}
+              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+              placeholder="Leave empty to use default image"
+              data-testid="agent-image-input"
+            />
+            <p className="mt-1 text-xs text-slate-500">Optional. Use a custom Docker image for agent containers.</p>
+            {agentImage.trim() && (
+              <div className="mt-2 flex items-start gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2" data-testid="agent-image-info-banner">
+                <svg className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-xs text-blue-300">
+                  Make sure your image is based on the official AgentCrew agent image.{' '}
+                  <a href="https://agentcrew.helmcode.com/docs/configuration#custom-agent-images" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-200">
+                    See documentation &rarr;
+                  </a>
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1098,6 +1124,8 @@ export function TeamBuilderPage() {
               <dd className="text-white">{description || '-'}</dd>
               <dt className="text-slate-500">Workspace Path</dt>
               <dd className="text-white">{workspacePath || '-'}</dd>
+              <dt className="text-slate-500">Agent Image</dt>
+              <dd className="text-white">{agentImage || 'Default (provider-based)'}</dd>
             </dl>
           </div>
           <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
@@ -1154,6 +1182,7 @@ export function TeamBuilderPage() {
                   description: description || undefined,
                   workspace_path: workspacePath || undefined,
                   provider,
+                  agent_image: agentImage.trim() || undefined,
                   mcp_servers: mcpServers.length > 0 ? mcpServers : undefined,
                   agents: agents.map((a, i) => {
                     if (i === 0) {

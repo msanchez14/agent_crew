@@ -157,6 +157,7 @@ export interface Team {
   runtime: string;
   workspace_path: string;
   provider: AgentProvider;
+  agent_image?: string;
   mcp_servers?: McpServerConfig[];
   mcp_statuses?: McpServerStatus[];
   agents?: Agent[];
@@ -211,6 +212,7 @@ export interface CreateTeamRequest {
   runtime?: string;
   workspace_path?: string;
   provider?: AgentProvider;
+  agent_image?: string;
   mcp_servers?: McpServerConfig[];
   agents?: CreateAgentInput[];
 }
@@ -220,6 +222,7 @@ export interface UpdateTeamRequest {
   description?: string;
   workspace_path?: string;
   provider?: AgentProvider;
+  agent_image?: string;
   mcp_servers?: McpServerConfig[];
 }
 
