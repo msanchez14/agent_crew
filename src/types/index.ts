@@ -138,7 +138,7 @@ export interface McpServerConfig {
 
 export interface McpServerStatus {
   name: string;
-  status: 'configured' | 'error';
+  status: 'configured' | 'running' | 'failed' | 'error';
   error?: string;
 }
 

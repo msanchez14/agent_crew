@@ -1033,7 +1033,7 @@ export function SettingsModal({
               </svg>
               MCP Servers
               {(() => {
-                const mcpErrors = mcpStatuses.filter((s) => s.status === 'error' || !!s.error).length;
+                const mcpErrors = mcpStatuses.filter((s) => s.status === 'error' || s.status === 'failed' || !!s.error).length;
                 if (mcpErrors > 0) {
                   return (
                     <span className="ml-auto rounded-full bg-red-500/20 px-1.5 py-0.5 text-xs text-red-400">
@@ -1347,25 +1347,46 @@ export function SettingsModal({
                   <div className="space-y-2">
                     {mcpServers.map((srv) => {
                       const status = mcpStatuses.find((s) => s.name === srv.name);
-                      const isError = status?.status === 'error';
-                      const hasError = (isError || !!status?.error) && !!status?.error;
+                      const isFailed = status?.status === 'failed' || status?.status === 'error';
+                      const hasError = isFailed && !!status?.error;
                       const isExpanded = expandedMcpErrors.has(srv.name);
+
+                      const dotColor = isFailed
+                        ? 'bg-red-400'
+                        : status?.status === 'running'
+                          ? 'bg-green-400'
+                          : status?.status === 'configured'
+                            ? 'bg-amber-400'
+                            : 'bg-slate-500';
+
+                      const statusText = isFailed
+                        ? (status?.status === 'failed' ? 'Failed' : 'Error')
+                        : status?.status === 'running'
+                          ? 'Running'
+                          : status?.status === 'configured'
+                            ? 'Configured'
+                            : 'Pending';
+
+                      const textColor = isFailed
+                        ? 'text-red-400'
+                        : status?.status === 'running'
+                          ? 'text-green-400'
+                          : status?.status === 'configured'
+                            ? 'text-amber-400'
+                            : 'text-slate-500';
+
                       return (
-                        <div key={srv.name} className={`rounded-lg border ${hasError ? 'border-red-500/30' : 'border-slate-700/50'} bg-slate-800/30 px-3 py-2`} data-testid={`mcp-server-${srv.name}`}>
+                        <div key={srv.name} className={`rounded-lg border ${isFailed ? 'border-red-500/30' : 'border-slate-700/50'} bg-slate-800/30 px-3 py-2`} data-testid={`mcp-server-${srv.name}`}>
                           <div className="flex items-center justify-between">
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
-                                <span className={`h-2 w-2 flex-shrink-0 rounded-full ${
-                                  hasError ? 'bg-red-400' : status?.status === 'configured' ? 'bg-green-400' : 'bg-slate-500'
-                                }`} />
+                                <span className={`h-2 w-2 flex-shrink-0 rounded-full ${dotColor}`} />
                                 <span className="text-sm font-medium text-white">{srv.name}</span>
                                 <span className={`rounded-full px-2 py-0.5 text-xs ${
                                   srv.transport === 'stdio' ? 'bg-purple-500/20 text-purple-400' : 'bg-cyan-500/20 text-cyan-400'
                                 }`}>{srv.transport}</span>
-                                <span className={`text-xs ${
-                                  hasError ? 'text-red-400' : status?.status === 'configured' ? 'text-green-400' : 'text-slate-500'
-                                }`}>
-                                  {hasError ? 'Error' : status?.status === 'configured' ? 'Configured' : 'Pending'}
+                                <span className={`text-xs ${textColor}`}>
+                                  {statusText}
                                 </span>
                                 {hasError && (
                                   <button
