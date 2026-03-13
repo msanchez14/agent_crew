@@ -31,18 +31,12 @@ const OPENCODE_MODELS = [
   { value: 'openai/gpt-5.2', label: 'GPT 5.2', group: 'OpenAI' },
   { value: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro', group: 'Google' },
   { value: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash', group: 'Google' },
-  { value: 'ollama/llama3.3', label: 'Llama 3.3', group: 'Ollama (Local)' },
-  { value: 'ollama/qwen3', label: 'Qwen 3', group: 'Ollama (Local)' },
-  { value: 'ollama/devstral', label: 'Devstral', group: 'Ollama (Local)' },
-  { value: 'lmstudio/default', label: 'Default Model', group: 'LM Studio (Local)' },
 ];
 
 const MODEL_CREDENTIALS: Record<string, string> = {
   anthropic: 'ANTHROPIC_API_KEY',
   openai: 'OPENAI_API_KEY',
   google: 'GOOGLE_GENERATIVE_AI_API_KEY',
-  ollama: 'OLLAMA_BASE_URL',
-  lmstudio: 'LM_STUDIO_BASE_URL',
 };
 
 const MAX_NAME_LENGTH = 255;
