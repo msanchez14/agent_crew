@@ -89,11 +89,31 @@ export function Layout() {
     <div className="flex h-full flex-col">
       {/* Brand */}
       <div className="flex h-16 items-center gap-2 border-b border-slate-800 px-5">
-        <svg className="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+        <svg className="h-7 w-auto" viewBox="0 0 280 56" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="sidebar-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#3b82f6"/>
+              <stop offset="100%" stopColor="#8b5cf6"/>
+            </linearGradient>
+          </defs>
+          <rect width="44" height="44" y="6" rx="9" fill="url(#sidebar-bg)"/>
+          <line x1="19" y1="27" x2="13" y2="19" stroke="white" strokeWidth="1.1" opacity="0.5" strokeLinecap="round"/>
+          <line x1="19" y1="27" x2="33" y2="20" stroke="white" strokeWidth="1.1" opacity="0.5" strokeLinecap="round"/>
+          <line x1="19" y1="27" x2="12" y2="39" stroke="white" strokeWidth="1.1" opacity="0.5" strokeLinecap="round"/>
+          <line x1="19" y1="27" x2="34" y2="40" stroke="white" strokeWidth="1.1" opacity="0.5" strokeLinecap="round"/>
+          <line x1="13" y1="19" x2="33" y2="20" stroke="white" strokeWidth="0.5" opacity="0.15" strokeLinecap="round"/>
+          <line x1="12" y1="39" x2="34" y2="40" stroke="white" strokeWidth="0.5" opacity="0.15" strokeLinecap="round"/>
+          <circle cx="19" cy="27" r="7" fill="white" opacity="0.12"/>
+          <circle cx="19" cy="27" r="5" fill="white" opacity="0.95"/>
+          <circle cx="13" cy="19" r="3" fill="white" opacity="0.85"/>
+          <circle cx="33" cy="20" r="3.3" fill="white" opacity="0.9"/>
+          <circle cx="12" cy="39" r="2.8" fill="white" opacity="0.8"/>
+          <circle cx="34" cy="40" r="3.1" fill="white" opacity="0.85"/>
+          <circle cx="7" cy="30" r="1" fill="white" opacity="0.2"/>
+          <circle cx="39" cy="31" r="1.1" fill="white" opacity="0.18"/>
+          <text x="56" y="34" fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" fontSize="22" fontWeight="600" fill="white">AgentCrew</text>
         </svg>
         <div className="flex flex-col">
-          <span className="text-lg font-bold text-white">AgentCrew</span>
           {showAuthNav && organization && (
             <span className="text-xs text-slate-400">{organization.name}</span>
           )}
@@ -227,7 +247,30 @@ export function Layout() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="ml-3 text-lg font-bold text-white">AgentCrew</span>
+          <svg className="ml-3 h-6 w-auto" viewBox="0 0 280 56" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <linearGradient id="mobile-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#3b82f6"/>
+                <stop offset="100%" stopColor="#8b5cf6"/>
+              </linearGradient>
+            </defs>
+            <rect width="44" height="44" y="6" rx="9" fill="url(#mobile-bg)"/>
+            <line x1="19" y1="27" x2="13" y2="19" stroke="white" strokeWidth="1.1" opacity="0.5" strokeLinecap="round"/>
+            <line x1="19" y1="27" x2="33" y2="20" stroke="white" strokeWidth="1.1" opacity="0.5" strokeLinecap="round"/>
+            <line x1="19" y1="27" x2="12" y2="39" stroke="white" strokeWidth="1.1" opacity="0.5" strokeLinecap="round"/>
+            <line x1="19" y1="27" x2="34" y2="40" stroke="white" strokeWidth="1.1" opacity="0.5" strokeLinecap="round"/>
+            <line x1="13" y1="19" x2="33" y2="20" stroke="white" strokeWidth="0.5" opacity="0.15" strokeLinecap="round"/>
+            <line x1="12" y1="39" x2="34" y2="40" stroke="white" strokeWidth="0.5" opacity="0.15" strokeLinecap="round"/>
+            <circle cx="19" cy="27" r="7" fill="white" opacity="0.12"/>
+            <circle cx="19" cy="27" r="5" fill="white" opacity="0.95"/>
+            <circle cx="13" cy="19" r="3" fill="white" opacity="0.85"/>
+            <circle cx="33" cy="20" r="3.3" fill="white" opacity="0.9"/>
+            <circle cx="12" cy="39" r="2.8" fill="white" opacity="0.8"/>
+            <circle cx="34" cy="40" r="3.1" fill="white" opacity="0.85"/>
+            <circle cx="7" cy="30" r="1" fill="white" opacity="0.2"/>
+            <circle cx="39" cy="31" r="1.1" fill="white" opacity="0.18"/>
+            <text x="56" y="34" fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" fontSize="22" fontWeight="600" fill="white">AgentCrew</text>
+          </svg>
         </header>
 
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
