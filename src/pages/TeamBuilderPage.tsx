@@ -600,7 +600,7 @@ export function TeamBuilderPage() {
                 </svg>
                 <p className="text-xs text-blue-300">
                   Make sure your image is based on the official AgentCrew agent image.{' '}
-                  <a href="https://agentcrew.helmcode.com/docs/configuration#custom-agent-images" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-200">
+                  <a href="https://agentcrew.sh/docs/configuration#custom-agent-images" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-200">
                     See documentation &rarr;
                   </a>
                 </p>
