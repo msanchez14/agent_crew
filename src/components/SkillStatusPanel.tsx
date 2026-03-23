@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import type { Agent, AgentProvider, SkillStatus, TaskLog, McpServerConfig, McpServerStatus, McpTransport } from '../types';
 import { agentsApi, teamsApi } from '../services/api';
 import { SubAgentManager } from './SubAgentManager';
-import { MarkdownEditor } from './MarkdownEditor';
+import { MarkdownEditor, normalizeMarkdown } from './MarkdownEditor';
 import { toast } from './Toast';
 import { friendlyError } from '../utils/errors';
 
@@ -400,8 +400,9 @@ function InstructionsEditor({ teamId, agent, onDirtyChange }: InstructionsEditor
       .getInstructions(teamId, agent.id)
       .then((data) => {
         if (cancelled) return;
-        setContent(data.content);
-        setSavedContent(data.content);
+        const normalized = normalizeMarkdown(data.content);
+        setContent(normalized);
+        setSavedContent(normalized);
         setFilePath(data.path);
       })
       .catch((err) => {
