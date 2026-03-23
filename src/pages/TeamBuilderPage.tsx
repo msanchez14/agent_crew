@@ -5,6 +5,8 @@ import { teamsApi, settingsApi } from '../services/api';
 import { toast } from '../components/Toast';
 import { friendlyError } from '../utils/errors';
 import { generateId } from '../utils/id';
+import { MarkdownEditor } from '../components/MarkdownEditor';
+import { MarkdownRenderer } from '../components/Markdown';
 
 interface AgentDraft {
   id: string;
@@ -664,13 +666,11 @@ export function TeamBuilderPage() {
                     <label className="mb-1 block text-xs text-slate-400">
                       {provider === 'claude' ? 'CLAUDE.md Content' : 'AGENTS.md Content'}
                     </label>
-                    <textarea
+                    <MarkdownEditor
                       value={agent.instructions_md}
-                      onChange={(e) => updateAgent(i, 'instructions_md', e.target.value)}
-                      onInput={autoGrow}
-                      rows={6}
-                      className="min-h-[80px] max-h-[400px] w-full resize-none overflow-y-auto rounded border border-slate-600 bg-slate-900 px-2.5 py-1.5 font-mono text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                      onChange={(md) => updateAgent(i, 'instructions_md', md)}
                       placeholder="# Agent instructions in Markdown..."
+                      minHeight="120px"
                     />
                     <p className="mt-1 text-xs text-slate-500">
                       This content will be written to the agent's {provider === 'claude' ? 'CLAUDE.md' : 'AGENTS.md'} file at deploy time.
@@ -783,13 +783,11 @@ export function TeamBuilderPage() {
                   </div>
                   <div>
                     <label className="mb-1 block text-xs text-slate-400">Instructions</label>
-                    <textarea
+                    <MarkdownEditor
                       value={agent.sub_agent_instructions}
-                      onChange={(e) => updateAgent(i, 'sub_agent_instructions', e.target.value)}
-                      onInput={autoGrow}
-                      rows={6}
-                      className="min-h-[120px] max-h-[400px] w-full resize-none overflow-y-auto rounded border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                      onChange={(md) => updateAgent(i, 'sub_agent_instructions', md)}
                       placeholder="Detailed instructions for the sub-agent (supports Markdown)"
+                      minHeight="120px"
                     />
                   </div>
                   <div>
@@ -1158,9 +1156,9 @@ export function TeamBuilderPage() {
                     </span>
                   </div>
                   {i === 0 && agent.instructions_md && (
-                    <pre className="mt-2 max-h-24 overflow-auto whitespace-pre-wrap rounded bg-slate-800 p-2 font-mono text-xs text-slate-400">
-                      {agent.instructions_md}
-                    </pre>
+                    <div className="mt-2 max-h-32 overflow-auto rounded bg-slate-800 p-2 text-xs text-slate-400">
+                      <MarkdownRenderer>{agent.instructions_md}</MarkdownRenderer>
+                    </div>
                   )}
                   {i > 0 && (
                     <pre data-testid={`sub-agent-preview-${agent.name || i}`} className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-slate-800 p-2 font-mono text-xs text-slate-400">

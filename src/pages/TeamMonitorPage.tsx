@@ -10,6 +10,20 @@ import { toast } from '../components/Toast';
 import { SettingsButton, SettingsModal, hasFailedSkills, getFailureMessage } from '../components/SkillStatusPanel';
 import { friendlyError } from '../utils/errors';
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_FILES = 5;
+const ALLOWED_MIME_PREFIXES = ['text/', 'image/', 'application/pdf'];
+
+function isAllowedMime(type: string): boolean {
+  return ALLOWED_MIME_PREFIXES.some((prefix) => type.startsWith(prefix));
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 const messageTypeColors: Record<string, string> = {
   user_message: 'text-blue-400',
   leader_response: 'text-cyan-400',
@@ -122,6 +136,7 @@ export function TeamMonitorPage() {
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
   const [agentTooltipVisible, setAgentTooltipVisible] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -129,6 +144,7 @@ export function TeamMonitorPage() {
   const activityContainerRef = useRef<HTMLDivElement>(null);
   const filterPopoverRef = useRef<HTMLDivElement>(null);
   const chatTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [activityAutoScroll, setActivityAutoScroll] = useState(true);
   // Track previous message counts to only scroll when NEW messages arrive,
@@ -275,6 +291,38 @@ export function TeamMonitorPage() {
     el.style.height = `${Math.min(el.scrollHeight, 150)}px`;
   }, []);
 
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(e.target.files || []);
+    // Reset so the same file can be re-selected
+    e.target.value = '';
+
+    const valid: File[] = [];
+    for (const file of selected) {
+      if (!isAllowedMime(file.type)) {
+        toast('error', `File type not allowed: ${file.name}`);
+        continue;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        toast('error', `File too large (max 10 MB): ${file.name}`);
+        continue;
+      }
+      valid.push(file);
+    }
+
+    setAttachedFiles((prev) => {
+      const combined = [...prev, ...valid];
+      if (combined.length > MAX_FILES) {
+        toast('error', `Maximum ${MAX_FILES} files allowed`);
+        return combined.slice(0, MAX_FILES);
+      }
+      return combined;
+    });
+  }
+
+  function removeFile(index: number) {
+    setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function handleSend() {
     if (!chatMessage.trim()) {
       setChatInputError(true);
@@ -296,16 +344,19 @@ export function TeamMonitorPage() {
       created_at: new Date().toISOString(),
     };
     setChatMessages((prev) => [...prev, optimistic]);
+    const filesToSend = attachedFiles.length > 0 ? [...attachedFiles] : undefined;
     setChatMessage('');
+    setAttachedFiles([]);
     if (chatTextareaRef.current) chatTextareaRef.current.style.height = 'auto';
     setWaitingForReply(true);
     try {
-      await chatApi.send(teamId, { message: text });
+      await chatApi.send(teamId, { message: text }, filesToSend);
     } catch (err) {
       // Remove optimistic message on failure
       setChatMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
       setWaitingForReply(false);
       setChatMessage(text);
+      if (filesToSend) setAttachedFiles(filesToSend);
       setTimeout(() => autoResizeTextarea(), 0);
       toast('error', friendlyError(err, 'Failed to send message. Please try again.'));
     } finally {
@@ -621,7 +672,53 @@ export function TeamMonitorPage() {
             <div ref={chatEndRef} />
           </div>
           <div className="border-t border-slate-700 p-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="text/*,image/*,application/pdf"
+              onChange={handleFileSelect}
+              className="hidden"
+              data-testid="file-input"
+            />
+            {attachedFiles.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-1.5" data-testid="file-preview-chips">
+                {attachedFiles.map((file, idx) => (
+                  <span
+                    key={`${file.name}-${idx}`}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-600 bg-slate-800 px-2.5 py-1 text-xs text-slate-300"
+                  >
+                    <svg className="h-3.5 w-3.5 flex-shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    <span className="max-w-[120px] truncate">{file.name}</span>
+                    <span className="text-slate-500">({formatFileSize(file.size)})</span>
+                    <button
+                      onClick={() => removeFile(idx)}
+                      className="ml-0.5 rounded-full p-0.5 text-slate-500 transition-colors hover:bg-slate-700 hover:text-slate-300"
+                      aria-label={`Remove ${file.name}`}
+                      data-testid={`remove-file-${idx}`}
+                    >
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="flex items-end gap-2">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={team.status !== 'running'}
+                className="rounded-lg border border-slate-600 p-2 text-slate-400 transition-colors hover:border-slate-500 hover:text-slate-300 disabled:opacity-50"
+                title="Attach files"
+                data-testid="attach-file-button"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+              </button>
               {team.agents && team.agents.length > 0 && (
                 <SettingsButton
                   agents={team.agents}

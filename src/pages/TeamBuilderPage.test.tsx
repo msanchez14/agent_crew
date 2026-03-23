@@ -279,6 +279,10 @@ describe('TeamBuilderPage', () => {
     await userEvent.type(screen.getByPlaceholderText('My Agent Team'), 'test');
     await userEvent.click(screen.getByText('Next'));
 
+    // Toggle to raw mode to access the textarea
+    const toggles = screen.getAllByTestId('markdown-editor-toggle');
+    await userEvent.click(toggles[0]);
+
     const textarea = screen.getByPlaceholderText('# Agent instructions in Markdown...');
     expect(textarea).toBeInTheDocument();
     expect((textarea as HTMLTextAreaElement).value).toContain('# Agent:');
@@ -306,7 +310,14 @@ describe('TeamBuilderPage', () => {
     const modelSelects = screen.getAllByDisplayValue('Inherit (default)');
     expect(modelSelects.length).toBe(2); // leader + sub-agent
 
-    // Sub-agent should NOT have CLAUDE.md textarea (only 1 from the leader)
+    // Both leader and sub-agent have markdown editors (2 total)
+    const editors = screen.getAllByTestId('markdown-editor');
+    expect(editors).toHaveLength(2);
+
+    // Toggle both to raw mode — leader has instructions placeholder, sub-agent has its own
+    const toggles = screen.getAllByTestId('markdown-editor-toggle');
+    await userEvent.click(toggles[0]);
+    await userEvent.click(toggles[1]);
     const claudeTextareas = screen.getAllByPlaceholderText('# Agent instructions in Markdown...');
     expect(claudeTextareas).toHaveLength(1);
   });
@@ -327,7 +338,9 @@ describe('TeamBuilderPage', () => {
     await userEvent.click(screen.getByText('Next'));
 
     await userEvent.type(screen.getByPlaceholderText('Agent name'), 'leader');
-    // Clear default and type custom content
+    // Toggle to raw mode, clear default and type custom content
+    const toggles = screen.getAllByTestId('markdown-editor-toggle');
+    await userEvent.click(toggles[0]);
     const instructionsEditor = screen.getByPlaceholderText('# Agent instructions in Markdown...');
     await userEvent.clear(instructionsEditor);
     await userEvent.type(instructionsEditor, '# Custom instructions');
@@ -546,6 +559,9 @@ describe('TeamBuilderPage', () => {
       screen.getByPlaceholderText('Short one-liner: what does this sub-agent do?'),
       'Runs tests',
     );
+    // Toggle sub-agent instructions editor to raw mode
+    const toggles = screen.getAllByTestId('markdown-editor-toggle');
+    await userEvent.click(toggles[1]); // Second editor = sub-agent
     await userEvent.type(
       screen.getByPlaceholderText('Detailed instructions for the sub-agent (supports Markdown)'),
       'You must run all unit tests before reporting results.',
@@ -606,6 +622,9 @@ describe('TeamBuilderPage', () => {
       screen.getByPlaceholderText('Short one-liner: what does this sub-agent do?'),
       'Runs tests',
     );
+    // Toggle sub-agent instructions editor to raw mode
+    const toggles = screen.getAllByTestId('markdown-editor-toggle');
+    await userEvent.click(toggles[1]); // Second editor = sub-agent
     await userEvent.type(
       screen.getByPlaceholderText('Detailed instructions for the sub-agent (supports Markdown)'),
       'Run pytest with coverage.',
@@ -719,6 +738,9 @@ describe('TeamBuilderPage', () => {
     await userEvent.type(screen.getByPlaceholderText('My Agent Team'), 'test');
     await userEvent.click(screen.getByText('Next'));
 
+    // Toggle to raw mode to access textarea
+    const toggles = screen.getAllByTestId('markdown-editor-toggle');
+    await userEvent.click(toggles[0]);
     const textarea = screen.getByPlaceholderText('# Agent instructions in Markdown...');
     await userEvent.clear(textarea);
     await userEvent.type(textarea, '# My custom agent config');
