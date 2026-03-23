@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import type { Agent, AgentProvider, SkillStatus, TaskLog, McpServerConfig, McpServerStatus, McpTransport } from '../types';
 import { agentsApi, teamsApi } from '../services/api';
 import { SubAgentManager } from './SubAgentManager';
-import { MarkdownEditor, normalizeMarkdown } from './MarkdownEditor';
+import { MarkdownEditor } from './MarkdownEditor';
 import { toast } from './Toast';
 import { friendlyError } from '../utils/errors';
 
@@ -378,6 +378,7 @@ function InstructionsEditor({ teamId, agent, onDirtyChange }: InstructionsEditor
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<'save' | 'discard' | null>(null);
+  const initialSyncDone = useRef(false);
 
   const isDirty = content !== savedContent;
 
@@ -400,9 +401,9 @@ function InstructionsEditor({ teamId, agent, onDirtyChange }: InstructionsEditor
       .getInstructions(teamId, agent.id)
       .then((data) => {
         if (cancelled) return;
-        const normalized = normalizeMarkdown(data.content);
-        setContent(normalized);
-        setSavedContent(normalized);
+        setContent(data.content);
+        setSavedContent(data.content);
+        initialSyncDone.current = false;
         setFilePath(data.path);
       })
       .catch((err) => {
@@ -435,6 +436,17 @@ function InstructionsEditor({ teamId, agent, onDirtyChange }: InstructionsEditor
   function executeDiscard() {
     setConfirmAction(null);
     setContent(savedContent);
+    initialSyncDone.current = false;
+  }
+
+  function handleEditorChange(md: string) {
+    setContent(md);
+    // First emission from Tiptap is the initial normalization, not a user edit.
+    // Treat it as the new baseline to avoid false dirty detection.
+    if (!initialSyncDone.current) {
+      initialSyncDone.current = true;
+      setSavedContent(md);
+    }
   }
 
   if (loading) {
@@ -467,7 +479,7 @@ function InstructionsEditor({ teamId, agent, onDirtyChange }: InstructionsEditor
       <div data-testid="instructions-textarea" className="min-h-0 flex-1">
         <MarkdownEditor
           value={content}
-          onChange={setContent}
+          onChange={handleEditorChange}
           placeholder="# Agent instructions in Markdown..."
           minHeight="200px"
         />

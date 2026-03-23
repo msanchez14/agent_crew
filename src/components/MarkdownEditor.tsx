@@ -34,11 +34,6 @@ function markdownFromHtml(html: string): string {
   return turndown.turndown(html);
 }
 
-/** Round-trip MD → HTML → MD so the result matches what Tiptap will produce. */
-export function normalizeMarkdown(md: string): string {
-  if (!md) return md;
-  return markdownFromHtml(htmlFromMarkdown(md));
-}
 
 interface ToolbarProps {
   editor: ReturnType<typeof useEditor>;

@@ -282,9 +282,17 @@ export interface ChatRequest {
   message: string;
 }
 
+export interface UploadedFile {
+  name: string;
+  path: string;
+  size: number;
+  type: string;
+}
+
 export interface ChatResponse {
   status: string;
   message: string;
+  files?: UploadedFile[];
 }
 
 export interface UpdateSettingsRequest {

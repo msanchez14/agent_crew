@@ -350,7 +350,13 @@ export function TeamMonitorPage() {
     if (chatTextareaRef.current) chatTextareaRef.current.style.height = 'auto';
     setWaitingForReply(true);
     try {
-      await chatApi.send(teamId, { message: text }, filesToSend);
+      const res = await chatApi.send(teamId, { message: text }, filesToSend);
+      if (res.files && res.files.length > 0) {
+        const summary = res.files
+          .map((f) => `${f.name} → ${f.path} (${formatFileSize(f.size)})`)
+          .join(', ');
+        toast('success', `Files uploaded: ${summary}`);
+      }
     } catch (err) {
       // Remove optimistic message on failure
       setChatMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
