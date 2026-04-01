@@ -300,7 +300,7 @@ export function ActivityEventCard({ log }: { log: TaskLog }) {
             <span className="text-slate-500">{event.agent_name}</span>
             <span className="ml-auto text-slate-600">{relativeTime(event.timestamp)}</span>
           </div>
-          <p className="mt-0.5 text-xs text-slate-300">{getCategorySummary(event, category)}</p>
+          <p className="mt-0.5 break-words text-xs text-slate-300">{getCategorySummary(event, category)}</p>
         </div>
       </div>
       {hasPayload && (

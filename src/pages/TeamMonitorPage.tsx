@@ -893,7 +893,7 @@ export function TeamMonitorPage() {
             data-testid="activity-messages"
             ref={activityContainerRef}
             onScroll={handleActivityScroll}
-            className="flex-1 overflow-y-auto p-4 font-mono text-sm"
+            className="flex-1 overflow-y-auto overflow-x-hidden p-4 font-mono text-sm"
           >
             {filteredActivity.length === 0 ? (
               <p className="text-center text-sm text-slate-500">No activity yet</p>
